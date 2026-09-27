@@ -1,0 +1,876 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="差分帳">
+<meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#161B24" media="(prefers-color-scheme: dark)">
+<title>差分帳</title>
+<style>
+/* ===== 色・書体（ここを変えれば全体の見た目が変わる） ===== */
+:root {
+  color-scheme: light;
+  --bg: #F4F5F8;
+  --surface: #FFFFFF;
+  --text: #1A2130;
+  --muted: #5F6A7D;
+  --faint: #8F98A8;
+  --line: #E1E5EC;
+  --accent: #2E4A9E;          /* 藍 */
+  --accent-soft: #E6EBF7;
+  --add-bg: #E8F5ED; --add-hi: #B6E3C5; --add-fg: #17603A;
+  --del-bg: #FCEDED; --del-hi: #F3C1C1; --del-fg: #962626;
+  --mod-bg: #FFF8E8;
+  --gap-bg: #EDF0F5;
+  --sans: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic UI", sans-serif;
+  --serif: "Hiragino Mincho ProN", "Yu Mincho", "YuMincho", "Noto Serif JP", serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Noto Sans Mono", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #0F131A;
+    --surface: #161B24;
+    --text: #E4E8EF;
+    --muted: #9AA3B3;
+    --faint: #6E7788;
+    --line: #283041;
+    --accent: #93AAF0;
+    --accent-soft: #212B45;
+    --add-bg: #10271A; --add-hi: #1F5534; --add-fg: #8FD9A8;
+    --del-bg: #2E1517; --del-hi: #6A2A2F; --del-fg: #F2A3A3;
+    --mod-bg: #2A2414;
+    --gap-bg: #1B212C;
+  }
+}
+
+/* ===== 土台 ===== */
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.5 var(--sans);
+  -webkit-text-size-adjust: 100%;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+a { color: inherit; text-decoration: none; }
+button, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+[hidden] { display: none !important; }
+
+/* ===== 上部バー ===== */
+.bar {
+  position: sticky; top: 0; z-index: 10;
+  display: flex; align-items: center; gap: 4px;
+  padding: calc(env(safe-area-inset-top, 0px) + 6px) 8px 6px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+.bar .ttl { flex: 1; min-width: 0; padding-inline: 6px; }
+.bar .t1 { font-weight: 700; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar .t2 { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.icon-btn {
+  display: inline-grid; place-items: center;
+  width: 40px; height: 40px; border: 0; border-radius: 10px;
+  background: transparent; color: var(--accent); cursor: pointer;
+}
+.icon-btn:active { background: var(--accent-soft); }
+.icon-btn svg { width: 22px; height: 22px; }
+
+main { padding-block: 12px 32px; }
+main.has-dock { padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
+.pad { padding-inline: 16px; }
+
+/* ===== 一覧 ===== */
+.filter {
+  display: block; width: calc(100% - 32px); margin: 0 16px 12px;
+  padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--surface); font-size: 16px; /* 16px未満だとiPhoneで拡大される */
+}
+.list { list-style: none; margin: 0; padding: 0; background: var(--surface); border-block: 1px solid var(--line); }
+.list li + li { border-top: 1px solid var(--line); }
+.row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; min-height: 52px; }
+.row:active { background: var(--accent-soft); }
+.row .glyph { flex: none; width: 20px; height: 20px; color: var(--faint); }
+.row .glyph.dir { color: var(--accent); }
+.row .body { flex: 1; min-width: 0; }
+.row .title { font-weight: 600; overflow-wrap: anywhere; }
+.row .sub { color: var(--muted); font-size: 13px; margin-top: 2px; overflow-wrap: anywhere; }
+.row .meta { color: var(--faint); font-size: 12px; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.row .chev { flex: none; color: var(--faint); }
+.chip {
+  display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px;
+  font-size: 11px; font-weight: 600; letter-spacing: .04em; vertical-align: 2px;
+  background: var(--accent-soft); color: var(--accent);
+}
+.empty, .note { color: var(--muted); font-size: 14px; padding: 16px; }
+.section-label { font-size: 12px; letter-spacing: .08em; color: var(--muted); padding: 16px 16px 6px; }
+
+/* ===== コミット情報 ===== */
+.commit-card { background: var(--surface); border-block: 1px solid var(--line); padding: 14px 16px; }
+.commit-card .msg { font-weight: 700; overflow-wrap: anywhere; }
+.commit-card .msg-rest { white-space: pre-wrap; color: var(--muted); font-size: 14px; margin-top: 6px; overflow-wrap: anywhere; }
+.commit-card .meta { color: var(--muted); font-size: 13px; margin-top: 8px; font-variant-numeric: tabular-nums; }
+.commit-card .sha { font-family: var(--mono); font-size: 12px; }
+.commit-card .flag { color: var(--accent); font-size: 13px; margin-top: 6px; }
+
+.stats { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 12px 16px 4px; font-size: 13px; font-variant-numeric: tabular-nums; }
+.stats .a { color: var(--add-fg); font-weight: 600; }
+.stats .d { color: var(--del-fg); font-weight: 600; }
+
+.controls { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 16px 12px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; background: var(--surface); }
+.seg button { border: 0; background: transparent; padding: 6px 12px; font-size: 13px; cursor: pointer; color: var(--muted); }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--surface); font-weight: 600; }
+
+/* ===== 差分本体 ===== */
+.diff { background: var(--surface); border-block: 1px solid var(--line); }
+.diff.code { font: 13px/1.6 var(--mono); }
+.diff.prose { font: 16px/1.85 var(--serif); }
+.ln { display: grid; grid-template-columns: 3.2em 1.2em minmax(0, 1fr); }
+.ln .no {
+  text-align: right; padding-right: 6px; color: var(--faint);
+  font: 11px/inherit var(--mono); font-variant-numeric: tabular-nums;
+  user-select: none; -webkit-user-select: none; padding-top: .35em;
+}
+.diff.prose .ln .no { line-height: 1.85; padding-top: .45em; }
+.ln .mk { text-align: center; color: var(--faint); user-select: none; -webkit-user-select: none; }
+.ln .tx { white-space: pre-wrap; overflow-wrap: anywhere; padding-right: 12px; }
+.ln.del { background: var(--del-bg); } .ln.del .mk { color: var(--del-fg); }
+.ln.ins { background: var(--add-bg); } .ln.ins .mk { color: var(--add-fg); }
+.ln.mod { background: var(--mod-bg); } .ln.mod .mk { color: var(--accent); }
+del, ins { text-decoration: none; border-radius: 3px; }
+del { background: var(--del-hi); color: var(--del-fg); }
+ins { background: var(--add-hi); color: var(--add-fg); }
+.ln.mod del { text-decoration: line-through; text-decoration-thickness: 1px; }
+.gap {
+  display: block; width: 100%; border: 0; border-block: 1px dashed var(--line);
+  background: var(--gap-bg); color: var(--muted); padding: 8px 16px;
+  font: 12px/1.4 var(--sans); cursor: pointer; text-align: center;
+}
+.gap:active { color: var(--accent); }
+
+/* ===== 下部ドック（前後のコミット） ===== */
+.dock {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px;
+  padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px));
+  background: var(--surface); border-top: 1px solid var(--line);
+}
+.dock a, .dock span.off { padding: 10px 12px; border-radius: 10px; font-size: 14px; font-weight: 600; }
+.dock a { color: var(--accent); }
+.dock a:active { background: var(--accent-soft); }
+.dock .off { color: var(--faint); font-weight: 400; }
+.dock .prev { justify-self: start; } .dock .next { justify-self: end; }
+.dock .pos { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* ===== 設定・エラー・読み込み ===== */
+.form { display: grid; gap: 16px; padding: 4px 16px 24px; max-width: 560px; }
+.field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+.field input[type=text], .field input[type=password] {
+  width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--surface); font-size: 16px;
+}
+.field .hint { font-size: 12px; color: var(--muted); margin-top: 6px; line-height: 1.6; }
+.check { display: flex; gap: 8px; align-items: center; font-size: 14px; }
+.btn {
+  display: inline-block; border: 0; border-radius: 10px; padding: 11px 18px;
+  background: var(--accent); color: var(--surface); font-weight: 700; cursor: pointer; text-align: center;
+}
+.btn.ghost { background: transparent; color: var(--accent); border: 1px solid var(--line); }
+.btns { display: flex; flex-wrap: wrap; gap: 10px; }
+.msg-err { color: var(--del-fg); font-size: 14px; }
+.msg-ok { color: var(--add-fg); font-size: 14px; }
+.help { font-size: 13px; color: var(--muted); line-height: 1.7; border-top: 1px solid var(--line); padding-top: 14px; }
+.help ol { margin: 6px 0 0; padding-left: 1.4em; }
+.error-box { padding: 24px 16px; display: grid; gap: 14px; }
+.error-box .msg-err { font-size: 15px; }
+.loading { padding: 32px 16px; color: var(--muted); }
+.link-btn { display: flex; align-items: center; gap: 10px; margin: 0 16px 12px; padding: 12px 14px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <a class="icon-btn" id="back" href="#/" aria-label="戻る" hidden>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+  </a>
+  <div class="ttl"><div class="t1" id="t1">差分帳</div><div class="t2" id="t2"></div></div>
+  <button class="icon-btn" id="reload" type="button" aria-label="最新の状態に更新">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg>
+  </button>
+  <a class="icon-btn" id="gear" href="#/settings" aria-label="設定">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+  </a>
+</header>
+<main id="app"></main>
+
+<script>
+'use strict';
+/* ===========================================================
+   差分帳 — GitHubのリポジトリ → ファイル → コミット → 差分
+   構成:
+     1. 設定値        （定数・保存）
+     2. GitHub API    （取得・キャッシュ・エラー文言）
+     3. 差分計算      （Myers法、行→文字の二段階）  ※DOM非依存
+     4. 画面部品      （h()、日付、アイコン）
+     5. 各画面        （view* 関数。1画面 = 1関数）
+     6. ルーター      （URLの#以降で画面を切り替え）
+   =========================================================== */
+
+/* ---------- 1. 設定値 ---------- */
+const API = 'https://api.github.com';
+const CONTEXT_LINES = 3;      // 変更行の前後に残す行数
+const MAX_D = 1500;           // 差分計算の打ち切り（これ以上違うと全置換扱い）
+const CHAR_SIM_MIN = 0.35;    // この類似度未満の行ペアは文字単位で比べない
+const MAX_PAGES = 5;          // 一覧取得の最大ページ数（100件/ページ）
+const PROSE_EXT = /\.(md|markdown|txt|text)$/i;
+const BINARY_EXT = /\.(png|jpe?g|gif|webp|bmp|ico|heic|pdf|zip|gz|tgz|7z|mp3|m4a|wav|mp4|mov|woff2?|ttf|otf|eot|psd|ai|xlsx?|docx?|pptx?|exe|dll|so|jar)$/i;
+
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} },
+};
+const settings = {
+  user: store.get('sb.user') || '',
+  token: store.get('sb.token') || '',
+  mode: store.get('sb.mode') || '',   // 'inline' | 'split' | ''（自動）
+};
+
+/* ---------- 2. GitHub API ---------- */
+class ApiError extends Error {
+  constructor(status, message) { super(message); this.status = status; }
+}
+const cache = new Map();
+let rate = null;
+
+async function gh(path, { raw = false } = {}) {
+  const key = (raw ? 'R ' : 'J ') + path;
+  if (cache.has(key)) return cache.get(key);
+  const p = (async () => {
+    const headers = {
+      Accept: raw ? 'application/vnd.github.raw+json' : 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+    };
+    if (settings.token) headers.Authorization = 'Bearer ' + settings.token;
+    let res;
+    try { res = await fetch(API + path, { headers, cache: 'no-store' }); }
+    catch { throw new ApiError(0, 'GitHubに接続できません。通信状況を確認してください。'); }
+    const rem = res.headers.get('x-ratelimit-remaining');
+    if (rem != null) rate = { remaining: +rem, limit: +res.headers.get('x-ratelimit-limit'), reset: +res.headers.get('x-ratelimit-reset') };
+    if (!res.ok) throw new ApiError(res.status, await errorText(res));
+    return { body: raw ? await res.text() : await res.json(), next: nextLink(res.headers.get('link')) };
+  })();
+  cache.set(key, p);
+  p.catch(() => cache.delete(key));
+  return p;
+}
+
+async function ghAll(path) {
+  let out = [], next = path, pages = 0;
+  while (next && pages < MAX_PAGES) {
+    const r = await gh(next);
+    out = out.concat(r.body);
+    next = r.next; pages++;
+  }
+  return out;
+}
+
+function nextLink(header) {
+  const m = header && header.match(/<([^>]+)>;\s*rel="next"/);
+  return m ? m[1].replace(API, '') : null;
+}
+
+async function errorText(res) {
+  if (res.status === 401) return 'トークンが無効か期限切れです。設定で入れ直してください。';
+  if ((res.status === 403 || res.status === 429) && res.headers.get('x-ratelimit-remaining') === '0') {
+    const t = new Date(+res.headers.get('x-ratelimit-reset') * 1000);
+    return `GitHubの利用回数の上限に達しました。${pad2(t.getHours())}:${pad2(t.getMinutes())}ごろ回復します。` +
+      (settings.token ? '' : 'トークンを設定すると上限が大きく増えます。');
+  }
+  if (res.status === 404) return '見つかりません。非公開リポジトリの場合は、そのリポジトリを読めるトークンが必要です。';
+  if (res.status === 409) return 'このリポジトリはまだ空です。';
+  try { const j = await res.json(); return `GitHubがエラーを返しました（${res.status}）：${j.message}`; }
+  catch { return `GitHubがエラーを返しました（${res.status}）。`; }
+}
+
+const encPath = p => p.split('/').map(encodeURIComponent).join('/');
+const repoBase = (o, r) => `/repos/${encodeURIComponent(o)}/${encodeURIComponent(r)}`;
+
+async function getRepo(o, r) { return (await gh(repoBase(o, r))).body; }
+
+async function getTree(o, r) {
+  const repo = await getRepo(o, r);
+  return (await gh(`${repoBase(o, r)}/git/trees/${encodeURIComponent(repo.default_branch)}?recursive=1`)).body;
+}
+
+async function fileCommits(o, r, path) {
+  const repo = await getRepo(o, r);
+  return ghAll(`${repoBase(o, r)}/commits?path=${encodeURIComponent(path)}&sha=${encodeURIComponent(repo.default_branch)}&per_page=100`);
+}
+
+async function fileText(o, r, path, ref) {
+  const t = (await gh(`${repoBase(o, r)}/contents/${encPath(path)}?ref=${encodeURIComponent(ref)}`, { raw: true })).body;
+  if (t.includes('\u0000')) throw new ApiError(-1, 'バイナリファイルのため、差分は表示できません。');
+  return t.replace(/\r\n?/g, '\n');
+}
+
+/* ---------- 3. 差分計算（DOM非依存） ---------- */
+
+// Myers法。a, b は配列。戻り値は '=', '-', '+' の並び。maxD を超えたら null
+function myers(a, b, maxD) {
+  const n = a.length, m = b.length;
+  if (!n) return Array(m).fill('+');
+  if (!m) return Array(n).fill('-');
+  const max = n + m, off = max + 1;
+  const v = new Int32Array(2 * max + 3);
+  const trace = [];
+  for (let d = 0; d <= max; d++) {
+    if (d > maxD) return null;
+    trace.push(v.slice(off - d - 1, off + d + 2));
+    for (let k = -d; k <= d; k += 2) {
+      let x = (k === -d || (k !== d && v[off + k - 1] < v[off + k + 1])) ? v[off + k + 1] : v[off + k - 1] + 1;
+      let y = x - k;
+      while (x < n && y < m && a[x] === b[y]) { x++; y++; }
+      v[off + k] = x;
+      if (x >= n && y >= m) return myersBacktrack(trace, d, n, m);
+    }
+  }
+  return null;
+}
+
+function myersBacktrack(trace, D, n, m) {
+  const out = [];
+  let x = n, y = m;
+  for (let d = D; d > 0; d--) {
+    const snap = trace[d], at = k => snap[k + d + 1];
+    const k = x - y;
+    const prevK = (k === -d || (k !== d && at(k - 1) < at(k + 1))) ? k + 1 : k - 1;
+    const px = at(prevK), py = px - prevK;
+    while (x > px && y > py) { out.push('='); x--; y--; }
+    out.push(x === px ? '+' : '-');
+    x = px; y = py;
+  }
+  while (x > 0 && y > 0) { out.push('='); x--; y--; }
+  return out.reverse();
+}
+
+// 前後の一致部分を先に除いてから Myers にかける
+function diffArrays(a, b) {
+  let pre = 0;
+  while (pre < a.length && pre < b.length && a[pre] === b[pre]) pre++;
+  let suf = 0;
+  while (suf < a.length - pre && suf < b.length - pre && a[a.length - 1 - suf] === b[b.length - 1 - suf]) suf++;
+  const A = a.slice(pre, a.length - suf), B = b.slice(pre, b.length - suf);
+  const mid = myers(A, B, MAX_D) || [...Array(A.length).fill('-'), ...Array(B.length).fill('+')];
+  return [...Array(pre).fill('='), ...mid, ...Array(suf).fill('=')];
+}
+
+// 1行どうしの文字単位の差分。segs: [{t:'='|'-'|'+', s}], sim: 0〜1
+function charDiff(oldLine, newLine) {
+  const A = Array.from(oldLine), B = Array.from(newLine);
+  const ops = diffArrays(A, B);
+  let segs = [], ai = 0, bi = 0, same = 0;
+  for (const op of ops) {
+    const ch = op === '+' ? B[bi++] : A[ai++];
+    if (op === '=') { bi++; same++; }
+    const last = segs[segs.length - 1];
+    if (last && last.t === op) last.s += ch; else segs.push({ t: op, s: ch });
+  }
+  segs = tidySegments(segs);
+  const sim = (A.length + B.length) ? (2 * same) / (A.length + B.length) : 1;
+  return { segs, sim };
+}
+
+// 変更に挟まれた1〜2文字の一致は変更に含め、読みやすくする
+function tidySegments(segs) {
+  for (let i = 1; i < segs.length - 1; i++) {
+    const s = segs[i];
+    if (s.t === '=' && Array.from(s.s).length <= 2 && segs[i - 1].t !== '=' && segs[i + 1].t !== '=') s.t = '~';
+  }
+  const out = [];
+  let del = '', ins = '';
+  const flush = () => { if (del) out.push({ t: '-', s: del }); if (ins) out.push({ t: '+', s: ins }); del = ins = ''; };
+  for (const s of segs) {
+    if (s.t === '=') { flush(); out.push(s); }
+    else if (s.t === '-') del += s.s;
+    else if (s.t === '+') ins += s.s;
+    else { del += s.s; ins += s.s; }
+  }
+  flush();
+  return out;
+}
+
+function splitLines(text) {
+  if (!text) return [];
+  const lines = text.split('\n');
+  if (lines[lines.length - 1] === '') lines.pop();
+  return lines;
+}
+
+const charLen = s => Array.from(s).length;
+const PAIR_LOOKAHEAD = 4;     // 書き換え行の相手を何行先まで探すか
+
+// 削除行と追加行を、似ている者どうし順番を保って組にする
+function pairLines(dels, ins, stats) {
+  const entries = [];
+  const pushDel = d => { entries.push({ t: 'del', ...d }); stats.delC += charLen(d.text); };
+  const pushIns = n => { entries.push({ t: 'ins', ...n }); stats.addC += charLen(n.text); };
+  const lookahead = dels.length * ins.length > 2000 ? 0 : PAIR_LOOKAHEAD;
+  let j = 0;
+  for (const d of dels) {
+    let hit = -1, cd = null;
+    for (let k = j; k < ins.length && k <= j + lookahead; k++) {
+      const c = charDiff(d.text, ins[k].text);
+      if (c.sim >= CHAR_SIM_MIN) { hit = k; cd = c; break; }
+    }
+    if (hit < 0) { pushDel(d); continue; }
+    while (j < hit) pushIns(ins[j++]);
+    entries.push({ t: 'pair', o: d.o, n: ins[hit].n, segs: cd.segs });
+    for (const s of cd.segs) { if (s.t === '-') stats.delC += charLen(s.s); if (s.t === '+') stats.addC += charLen(s.s); }
+    j = hit + 1;
+  }
+  while (j < ins.length) pushIns(ins[j++]);
+  return entries;
+}
+
+// 画面に依存しない差分モデル
+// items: {kind:'eq', o, n, text} | {kind:'block', entries:[{t:'pair'|'del'|'ins', ...}]}
+function buildDiff(oldText, newText) {
+  const a = splitLines(oldText), b = splitLines(newText);
+  const ops = diffArrays(a, b);
+  const items = [];
+  const stats = { addL: 0, delL: 0, addC: 0, delC: 0 };
+  let oi = 0, ni = 0, i = 0;
+  while (i < ops.length) {
+    if (ops[i] === '=') { items.push({ kind: 'eq', o: oi + 1, n: ni + 1, text: a[oi] }); oi++; ni++; i++; continue; }
+    const dels = [], ins = [];
+    while (i < ops.length && ops[i] !== '=') {
+      if (ops[i] === '-') { dels.push({ o: oi + 1, text: a[oi] }); oi++; }
+      else { ins.push({ n: ni + 1, text: b[ni] }); ni++; }
+      i++;
+    }
+    stats.delL += dels.length; stats.addL += ins.length;
+    items.push({ kind: 'block', entries: pairLines(dels, ins, stats) });
+  }
+  return { items, stats, same: stats.addL === 0 && stats.delL === 0 };
+}
+
+/* ---------- 4. 画面部品 ---------- */
+function h(tag, props, ...kids) {
+  const el = document.createElement(tag);
+  if (props) for (const [k, v] of Object.entries(props)) {
+    if (v == null || v === false) continue;
+    if (k === 'class') el.className = v;
+    else if (k === 'text') el.textContent = v;
+    else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+    else el.setAttribute(k, v === true ? '' : v);
+  }
+  for (const kid of kids.flat()) {
+    if (kid == null || kid === false) continue;
+    el.append(kid.nodeType ? kid : String(kid));
+  }
+  return el;
+}
+
+function svg(pathD, cls) {
+  const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('fill', 'none'); s.setAttribute('stroke', 'currentColor');
+  s.setAttribute('stroke-width', '1.8'); s.setAttribute('stroke-linecap', 'round'); s.setAttribute('stroke-linejoin', 'round');
+  if (cls) s.setAttribute('class', cls);
+  s.innerHTML = pathD;
+  return s;
+}
+const ICON = {
+  repo: '<path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5z"/><path d="M5 19.5A1.5 1.5 0 0 0 6.5 21H19v-3"/>',
+  dir: '<path d="M3 6.5A1.5 1.5 0 0 1 4.5 5H9l2 2h8.5A1.5 1.5 0 0 1 21 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z"/>',
+  file: '<path d="M14 3H7a1.5 1.5 0 0 0-1.5 1.5v15A1.5 1.5 0 0 0 7 21h10a1.5 1.5 0 0 0 1.5-1.5V7.5z"/><path d="M14 3v4.5h4.5"/>',
+  commit: '<circle cx="12" cy="12" r="3.5"/><path d="M12 3v5.5M12 15.5V21"/>',
+  chev: '<path d="M9 5l7 7-7 7"/>',
+  read: '<path d="M4 5h6a2 2 0 0 1 2 2v12a1.5 1.5 0 0 0-1.5-1.5H4z"/><path d="M20 5h-6a2 2 0 0 0-2 2v12a1.5 1.5 0 0 1 1.5-1.5H20z"/>',
+};
+
+const pad2 = n => String(n).padStart(2, '0');
+function absTime(iso) {
+  const d = new Date(iso);
+  return `${d.getFullYear()}/${pad2(d.getMonth() + 1)}/${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+function relTime(iso) {
+  const s = (Date.now() - new Date(iso)) / 1000;
+  if (s < 60) return 'たった今';
+  if (s < 3600) return `${Math.floor(s / 60)}分前`;
+  if (s < 86400) return `${Math.floor(s / 3600)}時間前`;
+  if (s < 86400 * 30) return `${Math.floor(s / 86400)}日前`;
+  return absTime(iso).slice(0, 10);
+}
+const basename = p => p.slice(p.lastIndexOf('/') + 1);
+const dirname = p => p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '';
+const byName = (a, b) => a.localeCompare(b, 'ja');
+
+function listRow(href, glyph, title, sub, meta, glyphCls) {
+  return h('li', null, h('a', { class: 'row', href },
+    svg(ICON[glyph], 'glyph' + (glyphCls ? ' ' + glyphCls : '')),
+    h('div', { class: 'body' },
+      h('div', { class: 'title' }, title),
+      sub ? h('div', { class: 'sub', text: sub }) : null,
+      meta ? h('div', { class: 'meta', text: meta }) : null),
+    svg(ICON.chev, 'glyph chev')));
+}
+
+/* 上部バー */
+const bar = {
+  back: document.getElementById('back'),
+  t1: document.getElementById('t1'),
+  t2: document.getElementById('t2'),
+  gear: document.getElementById('gear'),
+};
+function setBar({ title, sub = '', back = null, gear = false }) {
+  bar.t1.textContent = title;
+  bar.t2.textContent = sub;
+  bar.back.hidden = !back;
+  if (back) bar.back.href = back;
+  bar.gear.hidden = !gear;
+  document.title = title === '差分帳' ? '差分帳' : `${title} · 差分帳`;
+}
+
+/* ---------- 5. 各画面 ---------- */
+const link = {
+  repos: () => '#/',
+  settings: () => '#/settings',
+  tree: (o, r, dir) => `#/r/${enc(o)}/${enc(r)}` + (dir ? `/d/${enc(dir)}` : ''),
+  history: (o, r, p) => `#/r/${enc(o)}/${enc(r)}/h/${enc(p)}`,
+  file: (o, r, p) => `#/r/${enc(o)}/${enc(r)}/v/${enc(p)}`,
+  diff: (o, r, sha, p) => `#/r/${enc(o)}/${enc(r)}/c/${sha}/${enc(p)}`,
+};
+function enc(s) { return encodeURIComponent(s); }
+
+// リポジトリ一覧
+async function viewRepos() {
+  setBar({ title: '差分帳', sub: settings.token ? 'リポジトリ' : `${settings.user} の公開リポジトリ`, gear: true });
+  const path = settings.token
+    ? '/user/repos?per_page=100&sort=pushed&affiliation=owner,collaborator'
+    : `/users/${encodeURIComponent(settings.user)}/repos?per_page=100&sort=pushed`;
+  const repos = await ghAll(path);
+  const q = h('input', { id: 'q-repo', class: 'filter', type: 'search', placeholder: 'リポジトリを絞り込み', autocomplete: 'off' });
+  const list = h('ul', { class: 'list' });
+  const draw = () => {
+    const w = q.value.trim().toLowerCase();
+    const rows = repos
+      .filter(r => !w || r.full_name.toLowerCase().includes(w) || (r.description || '').toLowerCase().includes(w))
+      .map(r => listRow(link.tree(r.owner.login, r.name, ''), 'repo',
+        [r.name, r.private ? h('span', { class: 'chip', text: '非公開' }) : null],
+        r.description,
+        '更新 ' + relTime(r.pushed_at) + (r.owner.login !== settings.user ? ` · ${r.owner.login}` : '')));
+    list.replaceChildren(...(rows.length ? rows : [h('li', { class: 'empty', text: '該当するリポジトリがありません。' })]));
+  };
+  q.addEventListener('input', draw);
+  draw();
+  return h('div', null, q, list);
+}
+
+// フォルダの中身（ファイル一覧）
+async function viewTree({ o, r, dir }) {
+  setBar({ title: dir ? basename(dir) : r, sub: dir ? `${r} / ${dir}` : o, back: dir ? link.tree(o, r, dirname(dir)) : link.repos() });
+  const tree = await getTree(o, r);
+  const blobs = tree.tree.filter(t => t.type === 'blob').map(t => t.path);
+  const prefix = dir ? dir + '/' : '';
+  const dirs = new Set(), files = [];
+  for (const p of blobs) {
+    if (!p.startsWith(prefix)) continue;
+    const rest = p.slice(prefix.length), i = rest.indexOf('/');
+    if (i >= 0) dirs.add(rest.slice(0, i)); else files.push(rest);
+  }
+  const q = h('input', { id: 'q-file', class: 'filter', type: 'search', placeholder: 'このリポジトリ内を検索', autocomplete: 'off' });
+  const list = h('ul', { class: 'list' });
+  const draw = () => {
+    const w = q.value.trim().toLowerCase();
+    let rows;
+    if (w) {
+      rows = blobs.filter(p => p.toLowerCase().includes(w)).sort(byName).slice(0, 200)
+        .map(p => listRow(link.history(o, r, p), 'file', basename(p), dirname(p) || null));
+    } else {
+      rows = [
+        ...[...dirs].sort(byName).map(d => listRow(link.tree(o, r, prefix + d), 'dir', d, null, null, 'dir')),
+        ...files.sort(byName).map(f => listRow(link.history(o, r, prefix + f), 'file', f)),
+      ];
+    }
+    list.replaceChildren(...(rows.length ? rows : [h('li', { class: 'empty', text: w ? '見つかりません。' : 'ファイルがありません。' })]));
+  };
+  q.addEventListener('input', draw);
+  draw();
+  return h('div', null, q, list,
+    tree.truncated ? h('p', { class: 'note', text: 'ファイル数が多いため、一部が表示されていません。' }) : null);
+}
+
+// ファイルの変更履歴
+async function viewHistory({ o, r, path }) {
+  setBar({ title: basename(path), sub: dirname(path) ? `${r} / ${dirname(path)}` : r, back: link.tree(o, r, dirname(path)) });
+  const commits = await fileCommits(o, r, path);
+  const list = h('ul', { class: 'list' });
+  commits.forEach((c, i) => {
+    const [first] = c.commit.message.split('\n');
+    const who = c.commit.author?.name || c.author?.login || '';
+    const tag = i === 0 ? '最新' : (i === commits.length - 1 ? '最初' : null);
+    list.append(listRow(link.diff(o, r, c.sha, path), 'commit',
+      [first, tag ? h('span', { class: 'chip', text: tag }) : null],
+      null,
+      `${absTime(c.commit.author.date)}（${relTime(c.commit.author.date)}）· ${who} · ${c.sha.slice(0, 7)}`));
+  });
+  return h('div', null,
+    h('a', { class: 'link-btn', href: link.file(o, r, path) }, svg(ICON.read, 'glyph'), '現在の内容を読む'),
+    h('div', { class: 'section-label', text: `変更履歴 ${commits.length}件` }),
+    commits.length ? list : h('p', { class: 'note', text: '履歴が見つかりません。' }));
+}
+
+// 現在の内容
+async function viewFile({ o, r, path }) {
+  setBar({ title: basename(path), sub: '現在の内容', back: link.history(o, r, path) });
+  if (BINARY_EXT.test(path)) return h('p', { class: 'note', text: 'バイナリファイルのため表示できません。' });
+  const repo = await getRepo(o, r);
+  const text = await fileText(o, r, path, repo.default_branch);
+  const box = h('div', { class: 'diff ' + (PROSE_EXT.test(path) ? 'prose' : 'code') });
+  splitLines(text).forEach((t, i) => box.append(lineEl('eq', i + 1, t)));
+  return box;
+}
+
+// 1コミットの差分
+async function viewDiff({ o, r, sha, path }) {
+  setBar({ title: basename(path), sub: '変更の比較', back: link.history(o, r, path) });
+  const [detail, commits] = await Promise.all([
+    gh(`${repoBase(o, r)}/commits/${sha}`).then(x => x.body),
+    fileCommits(o, r, path).catch(() => []),
+  ]);
+  const entry = (detail.files || []).find(f => f.filename === path);
+  const parent = detail.parents[0]?.sha;
+  const status = entry?.status;
+  const oldPath = status === 'renamed' && entry.previous_filename ? entry.previous_filename : path;
+
+  const [first, ...rest] = detail.commit.message.split('\n');
+  const card = h('div', { class: 'commit-card' },
+    h('div', { class: 'msg', text: first }),
+    rest.join('\n').trim() ? h('div', { class: 'msg-rest', text: rest.join('\n').trim() }) : null,
+    h('div', { class: 'meta' },
+      `${absTime(detail.commit.author.date)} · ${detail.commit.author.name} · `,
+      h('span', { class: 'sha', text: sha.slice(0, 7) })),
+    status === 'added' || !parent ? h('div', { class: 'flag', text: 'このコミットで作られたファイルです。' }) : null,
+    status === 'renamed' ? h('div', { class: 'flag', text: `名前変更：${oldPath} → ${path}` }) : null,
+    status === 'removed' ? h('div', { class: 'flag', text: 'このコミットで削除されました。' }) : null);
+
+  const wrap = h('div', null, card);
+  wrap.append(dock(o, r, sha, path, commits));
+
+  if (BINARY_EXT.test(path)) { wrap.append(h('p', { class: 'note', text: 'バイナリファイルのため、差分は表示できません。' })); return wrap; }
+
+  const newText = status === 'removed' ? '' : await fileText(o, r, path, sha);
+  const oldText = (status === 'added' || !parent) ? '' :
+    await fileText(o, r, oldPath, parent).catch(e => { if (e.status === 404) return ''; throw e; });
+
+  const model = buildDiff(oldText, newText);
+  const prose = PROSE_EXT.test(path);
+  if (model.same) { wrap.append(h('p', { class: 'note', text: 'このコミットでは内容に変化がありません（名前や権限の変更のみ）。' })); return wrap; }
+
+  const s = model.stats;
+  wrap.append(h('div', { class: 'stats' },
+    h('span', null, h('span', { class: 'a', text: `+${s.addL}` }), ' / ', h('span', { class: 'd', text: `−${s.delL}` }), ' 行'),
+    h('span', null, h('span', { class: 'a', text: `+${s.addC}` }), ' / ', h('span', { class: 'd', text: `−${s.delC}` }), ' 字')));
+
+  let mode = settings.mode || (prose ? 'inline' : 'split');
+  let full = false;
+  const holder = h('div');
+  const segMode = segmented([['inline', '重ねる'], ['split', '分ける']], () => mode, v => { mode = v; settings.mode = v; store.set('sb.mode', v); draw(); });
+  const segFull = segmented([['part', '変更部分'], ['all', '全文']], () => full ? 'all' : 'part', v => { full = v === 'all'; draw(); });
+  function draw() { segMode.sync(); segFull.sync(); holder.replaceChildren(renderDiff(model, mode, full, prose)); }
+  wrap.append(h('div', { class: 'controls' }, segMode.el, segFull.el), holder);
+  draw();
+  return wrap;
+}
+
+function segmented(options, get, set) {
+  const btns = options.map(([val, label]) => h('button', { type: 'button', text: label, onclick: () => set(val) }));
+  const el = h('div', { class: 'seg', role: 'group' }, btns);
+  return { el, sync: () => btns.forEach((b, i) => b.setAttribute('aria-pressed', String(options[i][0] === get()))) };
+}
+
+// 下部の「前の版／次の版」
+function dock(o, r, sha, path, commits) {
+  const i = commits.findIndex(c => c.sha === sha);
+  const older = i >= 0 ? commits[i + 1] : null, newer = i > 0 ? commits[i - 1] : null;
+  document.getElementById('app').classList.add('has-dock');
+  return h('nav', { class: 'dock', 'aria-label': '前後の変更' },
+    older ? h('a', { class: 'prev', href: link.diff(o, r, older.sha, path), text: '‹ 前の版' }) : h('span', { class: 'prev off', text: '‹ 前の版' }),
+    h('span', { class: 'pos', text: i >= 0 ? `第${commits.length - i}版 / ${commits.length}` : '' }),
+    newer ? h('a', { class: 'next', href: link.diff(o, r, newer.sha, path), text: '次の版 ›' }) : h('span', { class: 'next off', text: '次の版 ›' }));
+}
+
+// 差分モデル → 画面
+function renderDiff(model, mode, full, prose) {
+  const rows = [];
+  const add = (changed, make) => rows.push({ changed, make });
+  for (const it of model.items) {
+    if (it.kind === 'eq') { add(false, () => lineEl('eq', it.n, it.text)); continue; }
+    if (mode === 'inline') {
+      for (const e of it.entries) {
+        if (e.t === 'pair') add(true, () => lineEl('mod', e.n, e.segs));
+        else if (e.t === 'del') add(true, () => lineEl('del', e.o, e.text));
+        else add(true, () => lineEl('ins', e.n, e.text));
+      }
+    } else {
+      for (const e of it.entries) {
+        if (e.t === 'pair') add(true, () => lineEl('del', e.o, e.segs.filter(s => s.t !== '+')));
+        else if (e.t === 'del') add(true, () => lineEl('del', e.o, e.text));
+      }
+      for (const e of it.entries) {
+        if (e.t === 'pair') add(true, () => lineEl('ins', e.n, e.segs.filter(s => s.t !== '-')));
+        else if (e.t === 'ins') add(true, () => lineEl('ins', e.n, e.text));
+      }
+    }
+  }
+  const box = h('div', { class: 'diff ' + (prose ? 'prose' : 'code') });
+  if (full) { rows.forEach(r => box.append(r.make())); return box; }
+
+  // 変更から CONTEXT_LINES 行より離れた同一行を折りたたむ
+  const n = rows.length, dist = new Array(n).fill(Infinity);
+  for (let i = 0, last = -Infinity; i < n; i++) { if (rows[i].changed) last = i; dist[i] = i - last; }
+  for (let i = n - 1, last = Infinity; i >= 0; i--) { if (rows[i].changed) last = i; dist[i] = Math.min(dist[i], last - i); }
+  let i = 0;
+  while (i < n) {
+    if (dist[i] <= CONTEXT_LINES) { box.append(rows[i].make()); i++; continue; }
+    let j = i;
+    while (j < n && dist[j] > CONTEXT_LINES) j++;
+    const hidden = rows.slice(i, j);
+    const btn = h('button', { class: 'gap', type: 'button', text: `同じ内容 ${hidden.length}行（タップで表示）` });
+    btn.addEventListener('click', () => btn.replaceWith(...hidden.map(r => r.make())));
+    box.append(btn);
+    i = j;
+  }
+  return box;
+}
+
+const MARK = { eq: '', del: '−', ins: '+', mod: '±' };
+function lineEl(kind, no, content) {
+  const tx = h('div', { class: 'tx' });
+  if (typeof content === 'string') tx.textContent = content || '​';
+  else {
+    for (const s of content) tx.append(s.t === '=' ? document.createTextNode(s.s) : h(s.t === '-' ? 'del' : 'ins', { text: s.s }));
+    if (!tx.childNodes.length) tx.textContent = '​';
+  }
+  return h('div', { class: 'ln ' + kind }, h('span', { class: 'no', text: no ?? '' }), h('span', { class: 'mk', text: MARK[kind] }), tx);
+}
+
+// 設定
+function viewSettings() {
+  setBar({ title: '設定', sub: 'GitHubへの接続', back: (settings.user || settings.token) ? link.repos() : null });
+  const user = h('input', { id: 'f-user', type: 'text', value: settings.user, autocomplete: 'username', autocapitalize: 'off', spellcheck: 'false' });
+  const token = h('input', { id: 'f-token', type: 'password', value: settings.token, autocomplete: 'off', placeholder: 'github_pat_…' });
+  const remember = h('input', { id: 'f-remember', type: 'checkbox' });
+  remember.checked = !!store.get('sb.token') || !settings.token;
+  const msg = h('div', { role: 'status' });
+
+  const save = async e => {
+    e.preventDefault();
+    msg.className = ''; msg.textContent = '確認しています…';
+    settings.token = token.value.trim();
+    settings.user = user.value.trim();
+    cache.clear();
+    try {
+      if (settings.token) {
+        const me = (await gh('/user')).body;
+        settings.user = me.login;
+      } else if (!settings.user) {
+        throw new ApiError(0, 'ユーザー名かトークンのどちらかを入れてください。');
+      }
+      store.set('sb.user', settings.user);
+      store.set('sb.token', remember.checked && settings.token ? settings.token : null);
+      location.hash = link.repos();
+    } catch (err) {
+      msg.className = 'msg-err'; msg.textContent = err.message;
+    }
+  };
+  const clear = () => {
+    settings.token = ''; token.value = ''; store.set('sb.token', null); cache.clear();
+    msg.className = 'msg-ok'; msg.textContent = 'この端末からトークンを消しました。';
+  };
+
+  return h('form', { class: 'form', onsubmit: save },
+    h('div', { class: 'field' }, h('label', { for: 'f-user', text: 'GitHubユーザー名' }), user,
+      h('div', { class: 'hint', text: 'トークンを入れた場合は自動で入ります。公開リポジトリだけ見るならユーザー名だけで使えます。' })),
+    h('div', { class: 'field' }, h('label', { for: 'f-token', text: 'アクセストークン（非公開リポジトリを見る場合）' }), token,
+      h('div', { class: 'hint', text: '読み取り専用のトークンを使ってください。トークンはGitHubにだけ送られ、ほかには送信しません。' })),
+    h('label', { class: 'check' }, remember, 'この端末に保存する'),
+    h('div', { class: 'btns' },
+      h('button', { class: 'btn', type: 'submit', text: '保存して開く' }),
+      settings.token ? h('button', { class: 'btn ghost', type: 'button', text: 'トークンを消す', onclick: clear }) : null),
+    msg,
+    rate ? h('div', { class: 'hint', text: `GitHub利用残り回数：${rate.remaining} / ${rate.limit}` }) : null,
+    h('div', { class: 'help' },
+      h('strong', { text: '読み取り専用トークンの作り方' }),
+      h('ol', null,
+        h('li', { text: 'GitHubの Settings → Developer settings → Personal access tokens → Fine-grained tokens を開く' }),
+        h('li', { text: '「Generate new token」を押し、有効期限を決める' }),
+        h('li', { text: 'Repository access で、見たいリポジトリを選ぶ（すべてでも可）' }),
+        h('li', { text: 'Permissions の Contents を「Read-only」にする（Metadata は自動で読み取りになる）' }),
+        h('li', { text: '作成されたトークンをコピーして上に貼る' }))));
+}
+
+function errorView(e) {
+  return h('div', { class: 'error-box' },
+    h('div', { class: 'msg-err', text: e.message || '読み込みに失敗しました。' }),
+    h('div', { class: 'btns' },
+      h('button', { class: 'btn', type: 'button', text: 'もう一度読み込む', onclick: () => { cache.clear(); route(); } }),
+      (e.status === 401 || e.status === 404) ? h('a', { class: 'btn ghost', href: link.settings(), text: '設定を開く' }) : null));
+}
+
+/* ---------- 6. ルーター ---------- */
+function parseHash() {
+  const parts = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
+  const dec = s => decodeURIComponent(s || '');
+  if (parts[0] === 'settings') return { view: 'settings' };
+  if (parts[0] === 'r' && parts.length >= 3) {
+    const o = dec(parts[1]), r = dec(parts[2]), [kind, x, y] = parts.slice(3);
+    if (!kind) return { view: 'tree', o, r, dir: '' };
+    if (kind === 'd') return { view: 'tree', o, r, dir: dec(x) };
+    if (kind === 'h') return { view: 'history', o, r, path: dec(x) };
+    if (kind === 'v') return { view: 'file', o, r, path: dec(x) };
+    if (kind === 'c') return { view: 'diff', o, r, sha: x, path: dec(y) };
+  }
+  return { view: 'repos' };
+}
+
+const VIEWS = { repos: viewRepos, settings: viewSettings, tree: viewTree, history: viewHistory, file: viewFile, diff: viewDiff };
+const app = document.getElementById('app');
+const scrollMemo = new Map();
+let currentHash = location.hash;
+let seq = 0;
+
+async function route() {
+  const my = ++seq;
+  const r = parseHash();
+  if (!settings.user && !settings.token && r.view !== 'settings') { location.replace(link.settings()); return; }
+  app.classList.remove('has-dock');
+  app.replaceChildren(h('div', { class: 'loading', text: '読み込み中…' }));
+  try {
+    const node = await VIEWS[r.view](r);
+    if (my !== seq) return;
+    app.replaceChildren(node);
+    window.scrollTo(0, scrollMemo.get(location.hash) || 0);
+  } catch (e) {
+    if (my !== seq) return;
+    app.replaceChildren(errorView(e));
+  }
+}
+
+window.addEventListener('hashchange', () => {
+  scrollMemo.set(currentHash, window.scrollY);
+  currentHash = location.hash;
+  route();
+});
+document.getElementById('reload').addEventListener('click', () => { cache.clear(); scrollMemo.set(location.hash, window.scrollY); route(); });
+route();
+</script>
+</body>
+</html>
