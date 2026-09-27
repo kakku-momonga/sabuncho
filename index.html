@@ -95,7 +95,8 @@ main.has-dock { padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
 .list li + li { border-top: 1px solid var(--line); }
 .row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; min-height: 52px; }
 .row:active { background: var(--accent-soft); }
-.row .glyph { flex: none; width: 20px; height: 20px; color: var(--faint); }
+.glyph { flex: none; width: 20px; height: 20px; }
+.row .glyph { color: var(--faint); }
 .row .glyph.dir { color: var(--accent); }
 .row .body { flex: 1; min-width: 0; }
 .row .title { font-weight: 600; overflow-wrap: anywhere; }
