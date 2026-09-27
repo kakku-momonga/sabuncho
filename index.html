@@ -25,6 +25,9 @@
   --del-bg: #FCEDED; --del-hi: #F3C1C1; --del-fg: #962626;
   --mod-bg: #FFF8E8;
   --gap-bg: #EDF0F5;
+  /* シンタックスハイライト */
+  --hl-kw: #A0306E; --hl-str: #2F7A43; --hl-com: #8A93A3; --hl-num: #B25B12;
+  --hl-fn: #2E4A9E; --hl-type: #0F7A8A; --hl-attr: #7A5A12; --hl-meta: #7B6C9C;
   --sans: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic UI", sans-serif;
   --serif: "Hiragino Mincho ProN", "Yu Mincho", "YuMincho", "Noto Serif JP", serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Noto Sans Mono", monospace;
@@ -44,6 +47,8 @@
     --del-bg: #2E1517; --del-hi: #6A2A2F; --del-fg: #F2A3A3;
     --mod-bg: #2A2414;
     --gap-bg: #1B212C;
+    --hl-kw: #E08AC0; --hl-str: #8FD9A8; --hl-com: #6E7788; --hl-num: #F0B070;
+    --hl-fn: #93AAF0; --hl-type: #6FD0DC; --hl-attr: #E3C27A; --hl-meta: #B7A6E0;
   }
 }
 
@@ -170,6 +175,44 @@ ins { background: var(--add-hi); color: var(--add-fg); }
 .dock .prev { justify-self: start; } .dock .next { justify-self: end; }
 .dock .pos { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 
+/* ===== シンタックスハイライト（highlight.js のクラス名） ===== */
+.hljs-keyword, .hljs-selector-tag, .hljs-doctag { color: var(--hl-kw); }
+.hljs-string, .hljs-regexp, .hljs-addition, .hljs-selector-attr, .hljs-template-tag { color: var(--hl-str); }
+.hljs-comment, .hljs-quote { color: var(--hl-com); font-style: italic; }
+.hljs-number, .hljs-literal, .hljs-symbol, .hljs-bullet { color: var(--hl-num); }
+.hljs-title, .hljs-section, .hljs-tag, .hljs-name, .hljs-selector-class, .hljs-selector-id { color: var(--hl-fn); }
+.hljs-type, .hljs-built_in, .hljs-title.class_ { color: var(--hl-type); }
+.hljs-attr, .hljs-attribute, .hljs-property, .hljs-variable.language_, .hljs-params { color: var(--hl-attr); }
+.hljs-meta { color: var(--hl-meta); }
+.hljs-deletion { color: var(--del-fg); }
+.hljs-emphasis { font-style: italic; } .hljs-strong { font-weight: 700; }
+
+/* ===== Markdownプレビュー ===== */
+.md-body { background: var(--surface); border-block: 1px solid var(--line); padding: 20px 16px 36px; }
+.md-inner { max-width: 42rem; margin: 0 auto; font: 16px/1.9 var(--serif); overflow-wrap: anywhere; }
+.md-inner h1, .md-inner h2, .md-inner h3, .md-inner h4 { font-family: var(--sans); line-height: 1.4; text-wrap: balance; margin: 1.6em 0 .6em; }
+.md-inner h1 { font-size: 1.6em; border-bottom: 1px solid var(--line); padding-bottom: .3em; }
+.md-inner h2 { font-size: 1.3em; border-bottom: 1px solid var(--line); padding-bottom: .25em; }
+.md-inner h3 { font-size: 1.1em; }
+.md-inner > :first-child { margin-top: 0; }
+.md-inner a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+.md-inner code { font: .88em var(--mono); background: var(--gap-bg); padding: .1em .35em; border-radius: 4px; }
+.md-inner pre { background: var(--gap-bg); padding: 12px 14px; border-radius: 8px; overflow-x: auto; }
+.md-inner pre code { font: 13px/1.6 var(--mono); background: none; padding: 0; white-space: pre; }
+.md-inner blockquote { margin: 1em 0; padding: 0 0 0 14px; border-left: 3px solid var(--line); color: var(--muted); }
+.md-inner hr { border: 0; border-top: 1px solid var(--line); margin: 2em 0; }
+.md-inner img { max-width: 100%; height: auto; }
+.md-inner .table-wrap { overflow-x: auto; margin: 1em 0; }
+.md-inner table { border-collapse: collapse; font-family: var(--sans); font-size: 14px; line-height: 1.5; }
+.md-inner th, .md-inner td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+.md-inner th { background: var(--gap-bg); }
+.img-missing { color: var(--faint); font: 12px var(--sans); }
+
+/* ===== HTMLプレビュー（HTMLは白地前提で作られていることが多いので白で表示） ===== */
+.html-frame { display: block; width: 100%; height: calc(100vh - 170px); min-height: 320px; border: 0; border-block: 1px solid var(--line); background: #FFFFFF; }
+
+.read-link { display: inline-block; margin-top: 10px; color: var(--accent); font-size: 14px; font-weight: 600; }
+
 /* ===== 設定・エラー・読み込み ===== */
 .form { display: grid; gap: 16px; padding: 4px 16px 24px; max-width: 560px; }
 .field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
@@ -231,6 +274,24 @@ const MAX_D = 1500;           // 差分計算の打ち切り（これ以上違�
 const CHAR_SIM_MIN = 0.35;    // この類似度未満の行ペアは文字単位で比べない
 const MAX_PAGES = 5;          // 一覧取得の最大ページ数（100件/ページ）
 const PROSE_EXT = /\.(md|markdown|txt|text)$/i;
+
+// 表示用ライブラリ（必要になったときだけ読み込む）
+const LIB = {
+  marked: 'https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js',
+  purify: 'https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js',
+  hljs:   'https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.9.0/highlight.min.js',
+};
+// 拡張子 → highlight.js の言語名
+const LANG = {
+  cs: 'csharp', java: 'java', ts: 'typescript', tsx: 'typescript', mts: 'typescript',
+  js: 'javascript', mjs: 'javascript', cjs: 'javascript', jsx: 'javascript',
+  html: 'xml', htm: 'xml', xml: 'xml', svg: 'xml', vue: 'xml', css: 'css', scss: 'scss', less: 'less',
+  json: 'json', py: 'python', sh: 'bash', bash: 'bash', zsh: 'bash', yml: 'yaml', yaml: 'yaml',
+  sql: 'sql', go: 'go', rs: 'rust', php: 'php', rb: 'ruby', kt: 'kotlin', kts: 'kotlin', swift: 'swift',
+  c: 'c', h: 'c', cpp: 'cpp', cc: 'cpp', hpp: 'cpp', m: 'objectivec', vb: 'vbnet', lua: 'lua',
+  pl: 'perl', r: 'r', ini: 'ini', toml: 'ini', md: 'markdown', markdown: 'markdown', diff: 'diff', patch: 'diff',
+};
+const HIGHLIGHT_MAX = 500000;   // これより大きいファイルは色付けしない（文字数）
 const BINARY_EXT = /\.(png|jpe?g|gif|webp|bmp|ico|heic|pdf|zip|gz|tgz|7z|mp3|m4a|wav|mp4|mov|woff2?|ttf|otf|eot|psd|ai|xlsx?|docx?|pptx?|exe|dll|so|jar)$/i;
 
 const store = {
@@ -241,6 +302,7 @@ const settings = {
   user: store.get('sb.user') || '',
   token: store.get('sb.token') || '',
   mode: store.get('sb.mode') || '',   // 'inline' | 'split' | ''（自動）
+  view: store.get('sb.view') || 'preview',   // .md/.html を開くとき 'preview' | 'source'
 };
 
 /* ---------- 2. GitHub API ---------- */
@@ -250,22 +312,29 @@ class ApiError extends Error {
 const cache = new Map();
 let rate = null;
 
+async function ghFetch(path, raw) {
+  const headers = {
+    Accept: raw ? 'application/vnd.github.raw+json' : 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28',
+  };
+  if (settings.token) headers.Authorization = 'Bearer ' + settings.token;
+  let res;
+  try { res = await fetch(API + path, { headers, cache: 'no-store' }); }
+  catch { throw new ApiError(0, 'GitHubに接続できません。通信状況を確認してください。'); }
+  const rem = res.headers.get('x-ratelimit-remaining');
+  if (rem != null) rate = { remaining: +rem, limit: +res.headers.get('x-ratelimit-limit'), reset: +res.headers.get('x-ratelimit-reset') };
+  if (!res.ok) throw new ApiError(res.status, await errorText(res));
+  return res;
+}
+
+// raw: 'text'（本文）/ 'blob'（画像など）/ false（JSON）
 async function gh(path, { raw = false } = {}) {
-  const key = (raw ? 'R ' : 'J ') + path;
+  const key = (raw ? raw + ' ' : 'J ') + path;
   if (cache.has(key)) return cache.get(key);
   const p = (async () => {
-    const headers = {
-      Accept: raw ? 'application/vnd.github.raw+json' : 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28',
-    };
-    if (settings.token) headers.Authorization = 'Bearer ' + settings.token;
-    let res;
-    try { res = await fetch(API + path, { headers, cache: 'no-store' }); }
-    catch { throw new ApiError(0, 'GitHubに接続できません。通信状況を確認してください。'); }
-    const rem = res.headers.get('x-ratelimit-remaining');
-    if (rem != null) rate = { remaining: +rem, limit: +res.headers.get('x-ratelimit-limit'), reset: +res.headers.get('x-ratelimit-reset') };
-    if (!res.ok) throw new ApiError(res.status, await errorText(res));
-    return { body: raw ? await res.text() : await res.json(), next: nextLink(res.headers.get('link')) };
+    const res = await ghFetch(path, !!raw);
+    const body = raw === 'blob' ? await res.blob() : raw ? await res.text() : await res.json();
+    return { body, next: nextLink(res.headers.get('link')) };
   })();
   cache.set(key, p);
   p.catch(() => cache.delete(key));
@@ -316,9 +385,27 @@ async function fileCommits(o, r, path) {
 }
 
 async function fileText(o, r, path, ref) {
-  const t = (await gh(`${repoBase(o, r)}/contents/${encPath(path)}?ref=${encodeURIComponent(ref)}`, { raw: true })).body;
+  const t = (await gh(`${repoBase(o, r)}/contents/${encPath(path)}?ref=${encodeURIComponent(ref)}`, { raw: 'text' })).body;
   if (t.includes('\u0000')) throw new ApiError(-1, 'バイナリファイルのため、差分は表示できません。');
   return t.replace(/\r\n?/g, '\n');
+}
+
+// Markdown内の画像などを、非公開リポジトリでも表示できるよう blob URL にする
+async function fileBlobUrl(o, r, path, ref) {
+  const b = (await gh(`${repoBase(o, r)}/contents/${encPath(path)}?ref=${encodeURIComponent(ref)}`, { raw: 'blob' })).body;
+  return URL.createObjectURL(b);
+}
+
+const scriptCache = new Map();
+function loadScript(src) {
+  if (!scriptCache.has(src)) scriptCache.set(src, new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload = resolve;
+    s.onerror = () => { scriptCache.delete(src); reject(new ApiError(0, '表示用のライブラリを読み込めませんでした。通信状況を確認してください。')); };
+    document.head.append(s);
+  }));
+  return scriptCache.get(src);
 }
 
 /* ---------- 3. 差分計算（DOM非依存） ---------- */
@@ -545,7 +632,7 @@ const link = {
   settings: () => '#/settings',
   tree: (o, r, dir) => `#/r/${enc(o)}/${enc(r)}` + (dir ? `/d/${enc(dir)}` : ''),
   history: (o, r, p) => `#/r/${enc(o)}/${enc(r)}/h/${enc(p)}`,
-  file: (o, r, p) => `#/r/${enc(o)}/${enc(r)}/v/${enc(p)}`,
+  file: (o, r, p, ref) => `#/r/${enc(o)}/${enc(r)}/v/${enc(p)}` + (ref ? `/${enc(ref)}` : ''),
   diff: (o, r, sha, p) => `#/r/${enc(o)}/${enc(r)}/c/${sha}/${enc(p)}`,
 };
 function enc(s) { return encodeURIComponent(s); }
@@ -628,15 +715,149 @@ async function viewHistory({ o, r, path }) {
     commits.length ? list : h('p', { class: 'note', text: '履歴が見つかりません。' }));
 }
 
-// 現在の内容
-async function viewFile({ o, r, path }) {
-  setBar({ title: basename(path), sub: '現在の内容', back: link.history(o, r, path) });
+// ファイルの内容（ref なし = 現在、あり = そのコミット時点）
+async function viewFile({ o, r, path, ref }) {
+  setBar({ title: basename(path), sub: ref ? `${ref.slice(0, 7)} 時点の内容` : '現在の内容', back: link.history(o, r, path) });
   if (BINARY_EXT.test(path)) return h('p', { class: 'note', text: 'バイナリファイルのため表示できません。' });
   const repo = await getRepo(o, r);
-  const text = await fileText(o, r, path, repo.default_branch);
-  const box = h('div', { class: 'diff ' + (PROSE_EXT.test(path) ? 'prose' : 'code') });
+  const at = ref || repo.default_branch;
+  const text = await fileText(o, r, path, at);
+  const kind = fileKind(path);
+  const ctx = { o, r, ref: at, dir: dirname(path), isPublic: !repo.private };
+
+  if (kind === 'text') return renderPlain(text, true);
+  if (kind === 'code') return renderCode(text, path);
+
+  // .md / .html はプレビューとソースを切り替え
+  const holder = h('div');
+  let n = 0;
+  const seg = segmented([['preview', 'プレビュー'], ['source', 'ソース']], () => settings.view, v => {
+    settings.view = v; store.set('sb.view', v); draw();
+  });
+  async function draw() {
+    const my = ++n;
+    seg.sync();
+    holder.replaceChildren(h('div', { class: 'loading', text: '表示を準備しています…' }));
+    try {
+      const node = settings.view === 'source' ? await renderCode(text, path)
+        : kind === 'md' ? await renderMarkdown(text, ctx) : renderHtmlPreview(text, ctx);
+      if (my === n) holder.replaceChildren(node);
+    } catch (e) {
+      if (my === n) holder.replaceChildren(h('p', { class: 'note msg-err', text: e.message }), renderPlain(text, false));
+    }
+  }
+  draw();
+  const wrap = h('div', null, h('div', { class: 'controls' }, seg.el), holder);
+  if (kind === 'html' && !ctx.isPublic) {
+    wrap.append(h('p', { class: 'note', text: '非公開リポジトリのため、HTMLが読み込む画像やCSSはプレビューに反映されません。' }));
+  }
+  return wrap;
+}
+
+function fileKind(path) {
+  if (/\.(md|markdown)$/i.test(path)) return 'md';
+  if (/\.html?$/i.test(path)) return 'html';
+  if (/\.(txt|text)$/i.test(path) || !langFor(path)) return 'text';
+  return 'code';
+}
+function langFor(path) {
+  const name = basename(path);
+  if (/^(Makefile|GNUmakefile)$/.test(name)) return 'makefile';
+  if (/^Dockerfile$/.test(name)) return 'bash';
+  const ext = name.includes('.') ? name.slice(name.lastIndexOf('.') + 1).toLowerCase() : '';
+  return LANG[ext] || null;
+}
+
+function renderPlain(text, prose) {
+  const box = h('div', { class: 'diff ' + (prose ? 'prose' : 'code') });
   splitLines(text).forEach((t, i) => box.append(lineEl('eq', i + 1, t)));
   return box;
+}
+
+// シンタックスハイライト（行番号つき）。失敗したら色なしで表示
+async function renderCode(text, path) {
+  const lang = langFor(path);
+  const body = text.replace(/\n$/, '');
+  if (!lang || body.length > HIGHLIGHT_MAX) return renderPlain(text, false);
+  await loadScript(LIB.hljs);
+  if (!window.hljs || !hljs.getLanguage(lang)) return renderPlain(text, false);
+  const html = hljs.highlight(body, { language: lang, ignoreIllegals: true }).value;
+  const box = h('div', { class: 'diff code' });
+  splitHighlighted(html).forEach((line, i) => {
+    const tx = h('div', { class: 'tx' });
+    tx.innerHTML = line || '​';   // highlight.js の出力は文字がエスケープ済み
+    box.append(h('div', { class: 'ln eq' }, h('span', { class: 'no', text: i + 1 }), h('span', { class: 'mk' }), tx));
+  });
+  return box;
+}
+
+// highlight.js の出力を行ごとに分ける。行をまたぐ <span> は各行で閉じて開き直す
+function splitHighlighted(html) {
+  const lines = [], open = [];
+  let cur = '';
+  const re = /<span[^>]*>|<\/span>|\n|[^<\n]+/g;
+  let m;
+  while ((m = re.exec(html))) {
+    const t = m[0];
+    if (t === '\n') { lines.push(cur + '</span>'.repeat(open.length)); cur = open.join(''); continue; }
+    if (t.startsWith('<span')) open.push(t);
+    else if (t === '</span>') open.pop();
+    cur += t;
+  }
+  lines.push(cur + '</span>'.repeat(open.length));
+  return lines;
+}
+
+const isExternal = u => /^([a-z][a-z0-9+.-]*:|\/\/)/i.test(u);
+// Markdown内の相対パスを、リポジトリ内のパスに直す
+function resolvePath(dir, rel) {
+  let p = rel.split(/[?#]/)[0];
+  try { p = decodeURIComponent(p); } catch {}
+  const parts = p.startsWith('/') ? [] : (dir ? dir.split('/') : []);
+  for (const seg of p.split('/')) {
+    if (seg === '..') parts.pop();
+    else if (seg && seg !== '.') parts.push(seg);
+  }
+  return parts.join('/');
+}
+
+async function renderMarkdown(text, { o, r, ref, dir }) {
+  await Promise.all([loadScript(LIB.marked), loadScript(LIB.purify), loadScript(LIB.hljs)]);
+  const inner = h('div', { class: 'md-inner' });
+  inner.innerHTML = DOMPurify.sanitize(marked.parse(text, { gfm: true }));
+
+  inner.querySelectorAll('pre code').forEach(el => {
+    const lang = (el.className.match(/language-([\w-]+)/) || [])[1];
+    if (lang && hljs.getLanguage(lang)) el.innerHTML = hljs.highlight(el.textContent, { language: lang, ignoreIllegals: true }).value;
+  });
+  inner.querySelectorAll('table').forEach(t => { const w = h('div', { class: 'table-wrap' }); t.before(w); w.append(t); });
+  inner.querySelectorAll('a[href]').forEach(a => {
+    const href = a.getAttribute('href');
+    if (isExternal(href)) { a.target = '_blank'; a.rel = 'noopener'; }
+    else if (href.startsWith('#')) a.addEventListener('click', e => e.preventDefault());   // 画面切り替えと衝突するため無効化
+    else a.href = link.file(o, r, resolvePath(dir, href), ref);
+  });
+  inner.querySelectorAll('img[src]').forEach(img => {
+    const src = img.getAttribute('src');
+    if (isExternal(src) || src.startsWith('data:')) return;
+    img.removeAttribute('src');
+    fileBlobUrl(o, r, resolvePath(dir, src), ref)
+      .then(u => { img.src = u; })
+      .catch(() => { img.replaceWith(h('span', { class: 'img-missing', text: `［画像を読み込めません：${src}］` })); });
+  });
+  return h('article', { class: 'md-body' }, inner);
+}
+
+// HTMLは隔離した枠の中で表示（このアプリの保存内容には触れられない）
+function renderHtmlPreview(text, { o, r, ref, dir, isPublic }) {
+  let doc = text;
+  if (isPublic) {
+    const base = `<base href="https://raw.githubusercontent.com/${encodeURIComponent(o)}/${encodeURIComponent(r)}/${encPath(ref)}/${dir ? encPath(dir) + '/' : ''}">`;
+    doc = /<head[^>]*>/i.test(doc) ? doc.replace(/<head[^>]*>/i, m => m + base) : base + doc;
+  }
+  const frame = h('iframe', { class: 'html-frame', sandbox: 'allow-scripts', title: 'HTMLのプレビュー', referrerpolicy: 'no-referrer' });
+  frame.srcdoc = doc;
+  return frame;
 }
 
 // 1コミットの差分
@@ -660,7 +881,9 @@ async function viewDiff({ o, r, sha, path }) {
       h('span', { class: 'sha', text: sha.slice(0, 7) })),
     status === 'added' || !parent ? h('div', { class: 'flag', text: 'このコミットで作られたファイルです。' }) : null,
     status === 'renamed' ? h('div', { class: 'flag', text: `名前変更：${oldPath} → ${path}` }) : null,
-    status === 'removed' ? h('div', { class: 'flag', text: 'このコミットで削除されました。' }) : null);
+    status === 'removed' ? h('div', { class: 'flag', text: 'このコミットで削除されました。' }) : null,
+    status !== 'removed' && !BINARY_EXT.test(path)
+      ? h('a', { class: 'read-link', href: link.file(o, r, path, sha), text: 'この版の全文を読む ›' }) : null);
 
   const wrap = h('div', null, card);
   wrap.append(dock(o, r, sha, path, commits));
@@ -836,7 +1059,7 @@ function parseHash() {
     if (!kind) return { view: 'tree', o, r, dir: '' };
     if (kind === 'd') return { view: 'tree', o, r, dir: dec(x) };
     if (kind === 'h') return { view: 'history', o, r, path: dec(x) };
-    if (kind === 'v') return { view: 'file', o, r, path: dec(x) };
+    if (kind === 'v') return { view: 'file', o, r, path: dec(x), ref: dec(y) };
     if (kind === 'c') return { view: 'diff', o, r, sha: x, path: dec(y) };
   }
   return { view: 'repos' };
