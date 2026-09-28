@@ -226,6 +226,16 @@ ins { background: var(--add-hi); color: var(--add-fg); }
 .img-compare { display: grid; gap: 4px; }
 @media (min-width: 720px) { .img-compare { grid-template-columns: 1fr 1fr; } }
 
+/* ===== PDF（紙面は白地のまま表示） ===== */
+.pdf-box { display: grid; gap: 10px; }
+.pdf-meta { padding-inline: 16px; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.pdf-meta a { color: var(--accent); font-weight: 600; }
+.pdf-pages { display: grid; gap: 12px; padding-inline: 16px; max-width: 900px; width: 100%; margin: 0 auto; }
+.pdf-page { position: relative; min-height: 60vh; background: #FFFFFF; box-shadow: 0 1px 3px rgb(0 0 0 / .18); }
+.pdf-page.done { min-height: 0; }
+.pdf-canvas { display: block; width: 100%; height: auto; }
+.pdf-no { position: absolute; right: 6px; bottom: 6px; padding: 1px 6px; border-radius: 4px; font: 11px var(--mono); color: #555; background: rgb(255 255 255 / .85); }
+
 /* ===== 設定・エラー・読み込み ===== */
 .form { display: grid; gap: 16px; padding: 4px 16px 24px; max-width: 560px; }
 .field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
@@ -293,7 +303,10 @@ const LIB = {
   marked: 'https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js',
   purify: 'https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js',
   hljs:   'https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.9.0/highlight.min.js',
+  pdfjs:  'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/legacy/build/pdf.min.js',
 };
+const PDFJS_BASE = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/';   // 日本語フォント用の cmaps などの置き場
+const isPdf = p => /\.pdf$/i.test(p);
 // 拡張子 → highlight.js の言語名
 const LANG = {
   cs: 'csharp', java: 'java', ts: 'typescript', tsx: 'typescript', mts: 'typescript',
@@ -430,6 +443,21 @@ function loadScript(src) {
     document.head.append(s);
   }));
   return scriptCache.get(src);
+}
+
+// pdf.js 本体と、別スレッドで動く処理部分（worker）を読み込む
+let pdfWorkerReady = null;
+async function loadPdfjs() {
+  await loadScript(LIB.pdfjs);
+  if (!pdfWorkerReady) {
+    // 別ドメインのworkerは直接起動できないので、中身を取得して自分のページ内から起動する
+    pdfWorkerReady = fetch(PDFJS_BASE + 'legacy/build/pdf.worker.min.js')
+      .then(res => { if (!res.ok) throw new Error(); return res.text(); })
+      .then(src => { pdfjsLib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(new Blob([src], { type: 'text/javascript' })); })
+      .catch(() => { pdfWorkerReady = null; throw new ApiError(0, 'PDF表示用のライブラリを読み込めませんでした。'); });
+  }
+  await pdfWorkerReady;
+  return pdfjsLib;
 }
 
 /* ---------- 3. 差分計算（DOM非依存） ---------- */
@@ -734,7 +762,7 @@ async function viewHistory({ o, r, path }) {
       `${absTime(c.commit.author.date)}（${relTime(c.commit.author.date)}）· ${who} · ${c.sha.slice(0, 7)}`));
   });
   return h('div', null,
-    h('a', { class: 'link-btn', href: link.file(o, r, path) }, svg(ICON.read, 'glyph'), isImage(path) ? '現在の画像を見る' : '現在の内容を読む'),
+    h('a', { class: 'link-btn', href: link.file(o, r, path) }, svg(ICON.read, 'glyph'), isImage(path) ? '現在の画像を見る' : isPdf(path) ? '現在のPDFを見る' : '現在の内容を読む'),
     h('div', { class: 'section-label', text: `変更履歴 ${commits.length}件` }),
     commits.length ? list : h('p', { class: 'note', text: '履歴が見つかりません。' }));
 }
@@ -746,6 +774,7 @@ async function viewFile({ o, r, path, ref }) {
   const at = ref || repo.default_branch;
   const ctx = { o, r, ref: at, dir: dirname(path), isPublic: !repo.private };
   if (isImage(path) && extOf(path) !== 'svg') return renderImage(o, r, path, at);
+  if (isPdf(path)) return renderPdf(o, r, path, at);
   if (BINARY_EXT.test(path)) return h('p', { class: 'note', text: 'バイナリファイルのため表示できません。' });
   const text = await fileText(o, r, path, at);
   const kind = fileKind(path);
@@ -808,6 +837,53 @@ function fmtBytes(n) {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
   return `${(n / 1024 / 1024).toFixed(2)} MB`;
+}
+
+// PDFはページごとに画像化して表示。画面に近づいたページから順に描く
+async function renderPdf(o, r, path, ref) {
+  const [blob, pdfjs] = await Promise.all([fileBlob(o, r, path, ref), loadPdfjs()]);
+  const doc = await pdfjs.getDocument({
+    data: new Uint8Array(await blob.arrayBuffer()),
+    cMapUrl: PDFJS_BASE + 'cmaps/', cMapPacked: true,
+    standardFontDataUrl: PDFJS_BASE + 'standard_fonts/',
+  }).promise;
+
+  const fileUrl = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+  const pages = h('div', { class: 'pdf-pages' });
+  const io = new IntersectionObserver(entries => {
+    for (const e of entries) if (e.isIntersecting) { io.unobserve(e.target); drawPage(e.target); }
+  }, { rootMargin: '800px 0px' });
+
+  for (let i = 1; i <= doc.numPages; i++) {
+    const slot = h('div', { class: 'pdf-page', 'data-page': i }, h('span', { class: 'pdf-no', text: `${i} / ${doc.numPages}` }));
+    pages.append(slot);
+    io.observe(slot);
+  }
+
+  async function drawPage(slot) {
+    const i = +slot.dataset.page;
+    try {
+      const page = await doc.getPage(i);
+      const cssWidth = slot.clientWidth || 360;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);   // iPhoneのメモリ上限を考えて2倍まで
+      const vp = page.getViewport({ scale: (cssWidth / page.getViewport({ scale: 1 }).width) * dpr });
+      const canvas = h('canvas', { class: 'pdf-canvas' });
+      canvas.width = Math.floor(vp.width);
+      canvas.height = Math.floor(vp.height);
+      slot.prepend(canvas);
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+      slot.classList.add('done');
+    } catch {
+      slot.prepend(h('p', { class: 'note', text: `${i}ページ目を表示できませんでした。` }));
+      slot.classList.add('done');
+    }
+  }
+
+  return h('div', { class: 'pdf-box' },
+    h('div', { class: 'pdf-meta' },
+      `${doc.numPages}ページ · ${fmtBytes(blob.size)} · `,
+      h('a', { href: fileUrl, target: '_blank', rel: 'noopener', text: '別の画面で開く' })),
+    pages);
 }
 function langFor(path) {
   const name = basename(path);
@@ -931,8 +1007,9 @@ async function viewDiff({ o, r, sha, path }) {
     status === 'added' || !parent ? h('div', { class: 'flag', text: 'このコミットで作られたファイルです。' }) : null,
     status === 'renamed' ? h('div', { class: 'flag', text: `名前変更：${oldPath} → ${path}` }) : null,
     status === 'removed' ? h('div', { class: 'flag', text: 'このコミットで削除されました。' }) : null,
-    status !== 'removed' && (!BINARY_EXT.test(path) || isImage(path))
-      ? h('a', { class: 'read-link', href: link.file(o, r, path, sha), text: isImage(path) ? 'この版の画像を見る ›' : 'この版の全文を読む ›' }) : null);
+    status !== 'removed' && (!BINARY_EXT.test(path) || isImage(path) || isPdf(path))
+      ? h('a', { class: 'read-link', href: link.file(o, r, path, sha),
+          text: isImage(path) ? 'この版の画像を見る ›' : isPdf(path) ? 'この版のPDFを見る ›' : 'この版の全文を読む ›' }) : null);
 
   const wrap = h('div', null, card);
   wrap.append(dock(o, r, sha, path, commits));
@@ -950,6 +1027,7 @@ async function viewDiff({ o, r, sha, path }) {
     return wrap;
   }
 
+  if (isPdf(path)) { wrap.append(h('p', { class: 'note', text: 'PDFは差分を表示できません。上の「この版のPDFを見る」と「前の版／次の版」で、各版を見比べられます。' })); return wrap; }
   if (BINARY_EXT.test(path)) { wrap.append(h('p', { class: 'note', text: 'バイナリファイルのため、差分は表示できません。' })); return wrap; }
 
   const newText = status === 'removed' ? '' : await fileText(o, r, path, sha);
